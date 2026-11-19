@@ -227,13 +227,6 @@ export const SubscriptionsPage: React.FC = () => {
     }
   };
 
-  const handleDeactivateInstead = async () => {
-    if (!deletingPackage) return;
-    const pkg = deletingPackage;
-    setDeletingPackage(null);
-    await handleToggleActive(pkg);
-  };
-
   return (
     <div className="space-y-6">
       <PageHeader
@@ -623,64 +616,31 @@ export const SubscriptionsPage: React.FC = () => {
           isOpen={!!deletingPackage}
           onClose={() => !isDeleting && setDeletingPackage(null)}
           title={`Delete Plan: ${deletingPackage.name}?`}
-          description="Confirm action to remove or deactivate this contractor membership tier."
+          description="This will permanently remove this membership plan."
           maxWidth="md"
         >
-          <div className="space-y-4 text-xs">
-            <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 space-y-2">
-              <div className="flex items-center gap-2 font-bold text-sm text-amber-950">
-                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
-                <span>Impact Assessment</span>
-              </div>
-              <p className="leading-relaxed">
-                Plan <strong>"{deletingPackage.name}"</strong> currently has{" "}
-                <strong>{deletingPackage.subscriberCount} active pro subscribers</strong>.
-              </p>
-              <p className="text-[11px] text-amber-800 leading-relaxed">
-                • <strong>Deactivate:</strong> Hides the plan from new contractors while preserving
-                existing accounts and billing.
-                <br />
-                • <strong>Delete:</strong> Permanently removes this tier from the system.
-              </p>
-            </div>
-
-            <div className="pt-4 border-t border-line flex items-center justify-end gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                type="button"
-                disabled={isDeleting}
-                onClick={() => setDeletingPackage(null)}
-              >
-                Cancel
-              </Button>
-
-              {deletingPackage.isActive && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  type="button"
-                  disabled={isDeleting}
-                  onClick={handleDeactivateInstead}
-                  className="border-slate-300 text-slate-700 font-semibold"
-                >
-                  Deactivate Instead
-                </Button>
-              )}
-
-              <Button
-                size="sm"
-                variant="primary"
-                type="button"
-                isLoading={isDeleting}
-                disabled={isDeleting}
-                onClick={handleConfirmDelete}
-                className="bg-rose-600 hover:bg-rose-700 text-white font-semibold cursor-pointer"
-              >
-                <Trash2 className="w-3.5 h-3.5 mr-1.5" />
-                Permanently Delete
-              </Button>
-            </div>
+          <div className="pt-2 flex items-center justify-end gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              type="button"
+              disabled={isDeleting}
+              onClick={() => setDeletingPackage(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              variant="primary"
+              type="button"
+              isLoading={isDeleting}
+              disabled={isDeleting}
+              onClick={handleConfirmDelete}
+              className="bg-rose-600 hover:bg-rose-700 text-white font-semibold cursor-pointer"
+            >
+              <Trash2 className="w-3.5 h-3.5 mr-1.5" />
+              Delete
+            </Button>
           </div>
         </Modal>
       )}

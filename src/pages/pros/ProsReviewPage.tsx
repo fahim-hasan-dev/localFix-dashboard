@@ -9,7 +9,6 @@ import {
   FileText,
   ArrowRight,
   Check,
-  X,
   Download,
 } from "lucide-react";
 import { Card } from "@/components/ui/Card";
@@ -28,7 +27,6 @@ import { ProClearance } from "@/types/common.types";
 import { formatDate, exportToCsv } from "@/lib/utils";
 
 type NoticeType = "success" | "error" | "info";
-type DecisionKind = "reject" | "changes";
 
 const getInitial = (name: string) => name.trim().charAt(0).toUpperCase() || "P";
 
@@ -48,7 +46,6 @@ export default function ProsReviewPage() {
   const total = data?.total ?? 0;
 
   const [inspectItem, setInspectItem] = useState<ProClearance | null>(null);
-  const [decision, setDecision] = useState<{ item: ProClearance; kind: DecisionKind } | null>(null);
   const [actionNotice, setActionNotice] = useState<{ type: NoticeType; text: string } | null>(null);
 
   useEffect(() => {
@@ -61,15 +58,13 @@ export default function ProsReviewPage() {
     return () => clearTimeout(timer);
   }, [actionNotice]);
 
-  const submitDecision = async (
-    item: ProClearance,
-    approvalStatus: "approved" | "rejected",
-    successText: string,
-    successType: NoticeType
-  ) => {
+  const handleApprove = async (item: ProClearance) => {
     try {
-      await updateApprovalStatus({ id: item.proId, approvalStatus }).unwrap();
-      setActionNotice({ type: successType, text: successText });
+      await updateApprovalStatus({ id: item.proId, approvalStatus: "approved" }).unwrap();
+      setActionNotice({
+        type: "success",
+        text: `Contractor approved: ${item.ownerName} is now active on the marketplace.`,
+      });
     } catch (err) {
       setActionNotice({
         type: "error",
@@ -77,30 +72,7 @@ export default function ProsReviewPage() {
       });
     } finally {
       setInspectItem(null);
-      setDecision(null);
     }
-  };
-
-  const handleApprove = (item: ProClearance) =>
-    submitDecision(
-      item,
-      "approved",
-      `Contractor approved: ${item.ownerName} is now active on the marketplace.`,
-      "success"
-    );
-
-  // The API only supports approved | rejected, so "Request Changes" also rejects.
-  const handleConfirmDecision = () => {
-    if (!decision) return;
-    const { item, kind } = decision;
-    return submitDecision(
-      item,
-      "rejected",
-      kind === "reject"
-        ? `Clearance rejected: ${item.ownerName} remains restricted.`
-        : `Changes requested: ${item.ownerName}'s application was returned as rejected.`,
-      kind === "reject" ? "error" : "info"
-    );
   };
 
   const handleExport = () => {
@@ -221,18 +193,6 @@ export default function ProsReviewPage() {
                 <span>Approve</span>
               </Button>
             )}
-            {item.clearanceLevel !== "rejected" && (
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={isUpdating}
-                className="text-xs h-8 px-3.5 font-medium text-rose-600 border-rose-200 hover:bg-rose-50 hover:border-rose-300 rounded-lg flex items-center gap-1.5 cursor-pointer shadow-2xs"
-                onClick={() => setDecision({ item, kind: "reject" })}
-              >
-                <X className="h-3.5 w-3.5" />
-                <span>Reject</span>
-              </Button>
-            )}
             <Button
               size="sm"
               variant="ghost"
@@ -333,47 +293,26 @@ export default function ProsReviewPage() {
         maxWidth="xl"
         footer={
           inspectItem && (
-            <div className="flex items-center justify-between w-full">
-              <Button
-                variant="danger"
-                size="sm"
-                disabled={isUpdating || inspectItem.clearanceLevel === "rejected"}
-                onClick={() => {
-                  setDecision({ item: inspectItem, kind: "reject" });
-                  setInspectItem(null);
-                }}
-              >
-                Reject
+            <div className="flex items-center justify-end w-full gap-2">
+              <Button variant="outline" size="sm" onClick={() => setInspectItem(null)}>
+                Close
               </Button>
-              <div className="flex items-center gap-2">
+              {inspectItem.clearanceLevel !== "cleared" ? (
                 <Button
-                  variant="outline"
+                  variant="primary"
                   size="sm"
                   disabled={isUpdating}
-                  onClick={() => {
-                    setDecision({ item: inspectItem, kind: "changes" });
-                    setInspectItem(null);
-                  }}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
+                  onClick={() => handleApprove(inspectItem)}
                 >
-                  Request Changes
+                  <Check className="h-3.5 w-3.5 mr-1.5" />
+                  Approve
                 </Button>
-                {inspectItem.clearanceLevel !== "cleared" ? (
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    disabled={isUpdating}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
-                    onClick={() => handleApprove(inspectItem)}
-                  >
-                    <Check className="h-3.5 w-3.5 mr-1.5" />
-                    Approve
-                  </Button>
-                ) : (
-                  <span className="inline-flex items-center gap-1.5 text-xs text-emerald-700 font-semibold px-2.5 py-1 bg-emerald-50 rounded-lg border border-emerald-200">
-                    <CheckCircle2 className="h-3.5 w-3.5" /> Approved
-                  </span>
-                )}
-              </div>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 text-xs text-emerald-700 font-semibold px-2.5 py-1 bg-emerald-50 rounded-lg border border-emerald-200">
+                  <CheckCircle2 className="h-3.5 w-3.5" /> Approved
+                </span>
+              )}
             </div>
           )
         }
@@ -520,29 +459,6 @@ export default function ProsReviewPage() {
         )}
       </Modal>
 
-      {/* Reject / Request Changes confirmation */}
-      <Modal
-        isOpen={!!decision}
-        onClose={() => setDecision(null)}
-        title={decision?.kind === "changes" ? "Request Document Changes" : "Reject Clearance"}
-        description={`Restrict pro account for ${decision?.item.businessName}.`}
-        footer={
-          <>
-            <Button variant="ghost" onClick={() => setDecision(null)}>
-              Cancel
-            </Button>
-            <Button variant="danger" onClick={handleConfirmDecision} disabled={isUpdating}>
-              {decision?.kind === "changes" ? "Confirm" : "Reject"}
-            </Button>
-          </>
-        }
-      >
-        <p className="text-xs text-muted leading-relaxed">
-          {decision?.kind === "changes"
-            ? `The platform only supports approved or rejected decisions, so requesting changes from ${decision.item.ownerName} will mark the clearance as rejected.`
-            : `${decision?.item.ownerName}'s clearance will be marked as rejected and the account will remain restricted.`}
-        </p>
-      </Modal>
     </div>
   );
 }

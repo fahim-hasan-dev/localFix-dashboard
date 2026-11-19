@@ -74,6 +74,7 @@ export const baseApi = createApi({
     "Clearance",
     "Disputes",
     "Tickets",
+    "Contacts",
     "Cms",
     "Categories",
     "Settings",

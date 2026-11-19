@@ -12,12 +12,23 @@ function mapRole(raw: string): UserRole {
 function mapStatus(raw: unknown): UserStatus {
   const status = String(pickString(raw, ["status"], "")).toLowerCase();
   const approval = String(pickString(raw, ["approvalStatus"], "")).toLowerCase();
+  const display = String(pickString(raw, ["displayStatus"], "")).toLowerCase();
+  const isBanned = pick<unknown>(raw, ["isBanned"]);
 
-  if (status === "inactive" || status === "banned" || status === "blocked") return "banned";
+  if (
+    isBanned === true ||
+    status === "inactive" ||
+    status === "banned" ||
+    status === "blocked" ||
+    display === "banned"
+  ) {
+    return "banned";
+  }
   if (
     approval === "pending" ||
     approval === "pending_clearance" ||
-    status === "pending_clearance"
+    status === "pending_clearance" ||
+    display === "pending"
   ) {
     return "pending_clearance";
   }
@@ -43,19 +54,45 @@ export function mapPlatformUser(raw: unknown): User {
       : pickString(category, ["name"], "");
 
   return {
-    id: pickString(raw, ["_id", "id"]),
-    name: pickString(raw, ["name", "fullName"], "Unknown"),
-    email: pickString(raw, ["email"]),
-    role: mapRole(pickString(raw, ["role"], "home_owner")),
-    status: mapStatus(raw),
-    avatar: resolveAssetUrl(pickString(raw, ["profileImage", "avatar", "image"])),
-    phone: pickString(raw, ["phone", "phoneNumber"]),
-    location: mapLocation(raw),
-    joinedDate: pickString(raw, ["createdAt", "joinedDate", "joinedAt"]),
-    lastActive: pickString(raw, ["updatedAt", "lastActive", "lastLoginAt"]),
+    id: pickString(raw, ["_id", "id", "header._id", "header.id"]),
+    name: pickString(raw, ["name", "fullName", "header.name"], ""),
+    email: pickString(raw, ["email", "header.email"]),
+    role: mapRole(pickString(raw, ["role", "header.role"], "home_owner")),
+    status: mapStatus(
+      pick<{ status?: unknown; approvalStatus?: unknown }>(raw, ["header"]) ?? raw
+    ),
+    avatar: resolveAssetUrl(
+      pickString(raw, [
+        "profileImage",
+        "avatar",
+        "image",
+        "header.profileImage",
+        "header.avatar",
+      ])
+    ),
+    phone: pickString(raw, ["phone", "phoneNumber", "header.phone"]),
+    location: mapLocation(pick(raw, ["header"]) ?? raw),
+    joinedDate: pickString(raw, [
+      "createdAt",
+      "joinedDate",
+      "joinedAt",
+      "header.createdAt",
+      "header.joinedDate",
+    ]),
+    lastActive: pickString(raw, [
+      "updatedAt",
+      "lastActive",
+      "lastLoginAt",
+      "header.updatedAt",
+    ]),
     totalJobs: pickNumber(raw, ["completedJobs", "totalJobs", "localJobs"]),
-    totalSpentOrEarned: pickNumber(raw, ["totalSpentOrEarned", "startingRate", "hourlyRate"]),
-    subscriptionPlan: pickString(raw, ["subscriptionPlan", "package.name"]) || undefined,
+    totalSpentOrEarned: pickNumber(raw, [
+      "totalSpentOrEarned",
+      "startingRate",
+      "hourlyRate",
+    ]),
+    subscriptionPlan:
+      pickString(raw, ["subscriptionPlan", "package.name"]) || undefined,
     banReason: pickString(raw, ["banReason", "rejectionReason"]) || undefined,
     bannedAt: pickString(raw, ["bannedAt"]) || undefined,
   };

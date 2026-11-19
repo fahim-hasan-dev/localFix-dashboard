@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { useGetAdminJobsQuery, useGetAdminOrdersQuery } from "@/api/jobsOrders.api";
+import { useGetCategoriesQuery } from "@/api/cms.api";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -24,18 +25,6 @@ import { formatDate, formatShortId } from "@/lib/utils";
 import type { Order } from "@/types/common.types";
 
 type OrdersTab = "quotes" | "orders";
-
-const JOB_CATEGORIES = [
-  "Plumbing",
-  "Electrical",
-  "HVAC",
-  "Roofing",
-  "Painting",
-  "Handyman",
-  "Appliance Repair",
-  "House Cleaning",
-  "Landscaping",
-];
 
 const TABLE_COLUMNS = 7;
 
@@ -81,6 +70,9 @@ export const OrdersPage: React.FC = () => {
   const [ordersPageSize, setOrdersPageSize] = useState(10);
 
   const [jobCategoryFilter, setJobCategoryFilter] = useState<string>("all");
+  const { data: categoriesData, isLoading: categoriesLoading } =
+    useGetCategoriesQuery();
+  const jobCategories = categoriesData?.items ?? [];
 
   useEffect(() => {
     setQuotesPage(1);
@@ -192,12 +184,15 @@ export const OrdersPage: React.FC = () => {
                 <select
                   value={jobCategoryFilter}
                   onChange={(e) => setJobCategoryFilter(e.target.value)}
-                  className="bg-transparent font-medium text-slate-800 outline-none cursor-pointer"
+                  disabled={categoriesLoading}
+                  className="bg-transparent font-medium text-slate-800 outline-none cursor-pointer disabled:opacity-60"
                 >
-                  <option value="all">All Categories</option>
-                  {JOB_CATEGORIES.map((category) => (
-                    <option key={category} value={category}>
-                      {category}
+                  <option value="all">
+                    {categoriesLoading ? "Loading…" : "All Categories"}
+                  </option>
+                  {jobCategories.map((category) => (
+                    <option key={category.id} value={category.id}>
+                      {category.name}
                     </option>
                   ))}
                 </select>

@@ -7,6 +7,10 @@ import {
   toApiRole,
   toApiStatus,
 } from "@/lib/mappers/mapPlatformUser";
+import {
+  mapUserDetails,
+  type UserDetails,
+} from "@/lib/mappers/mapUserDetails";
 import { unwrapList, type UnwrappedList } from "@/lib/unwrapList";
 import type { ProClearance, User } from "@/types/common.types";
 
@@ -40,12 +44,6 @@ function mapClearanceList(response: unknown): UnwrappedList<ProClearance> {
   };
 }
 
-function mapSingleUser(response: unknown): User {
-  const data = (response as { data?: unknown })?.data ?? response;
-  const nested = (data as { data?: unknown })?.data;
-  return mapPlatformUser(nested && typeof nested === "object" ? nested : data);
-}
-
 function mapSingleClearance(response: unknown): ProClearance {
   const data = (response as { data?: unknown })?.data ?? response;
   const nested = (data as { data?: unknown })?.data;
@@ -75,12 +73,12 @@ export const usersApi = baseApi.injectEndpoints({
           : [{ type: "Users", id: "LIST" }],
     }),
 
-    getUserById: build.query<User, string>({
+    getUserById: build.query<UserDetails, string>({
       query: (id) => ({
         url: API_ENDPOINTS.users.byId(id),
         method: "GET",
       }),
-      transformResponse: mapSingleUser,
+      transformResponse: mapUserDetails,
       providesTags: (_r, _e, id) => [{ type: "Users", id }],
     }),
 

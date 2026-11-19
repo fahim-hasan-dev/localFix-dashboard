@@ -48,6 +48,11 @@ export const API_ENDPOINTS = {
     byId: (id: string) => `/support-tickets/${id}`,
     reply: (id: string) => `/support-tickets/${id}/reply`,
   },
+  contact: {
+    root: "/contact",
+    byId: (id: string) => `/contact/${id}`,
+  },
+
   notifications: {
     admin: "/notifications/admin",
     adminById: (id: string) => `/notifications/admin/${id}`,

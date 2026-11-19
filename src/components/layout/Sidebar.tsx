@@ -9,9 +9,11 @@ import {
   FileText,
   Settings,
   LifeBuoy,
+  Mail,
   X,
 } from "lucide-react";
 import { useGetSiteSettingsQuery } from "@/api/cms.api";
+import { useGetContactMessagesQuery } from "@/api/contact.api";
 import { useGetSupportTicketsQuery } from "@/api/tickets.api";
 import { useGetClearancesQuery } from "@/api/users.api";
 import { ROUTES } from "@/constants/routes";
@@ -26,6 +28,7 @@ const navItems = [
   { to: ROUTES.TRANSACTIONS, label: "Transactions", icon: Receipt },
   { to: ROUTES.SUBSCRIPTIONS, label: "Subscriptions", icon: Layers },
   { to: ROUTES.TICKETS.LIST, label: "Support Tickets", icon: LifeBuoy },
+  { to: ROUTES.CONTACTS, label: "Contact Messages", icon: Mail },
   { to: ROUTES.CMS, label: "CMS", icon: FileText },
   { to: ROUTES.SETTINGS, label: "Settings", icon: Settings },
 ] as const;
@@ -44,6 +47,8 @@ export function Sidebar({ isMobileOpen = false, onClose }: SidebarProps) {
   };
   const { data: ticketsData } = useGetSupportTicketsQuery({ limit: 100 });
   const openTicketsCount = (ticketsData?.items ?? []).filter((t) => t.status === "open").length;
+  const { data: contactsData } = useGetContactMessagesQuery({ limit: 100 });
+  const pendingContactsCount = (contactsData?.items ?? []).filter((c) => c.status === "pending").length;
   const { data: clearancesData } = useGetClearancesQuery({ limit: 100 });
   const pendingClearancesCount = (clearancesData?.items ?? []).filter(
     (c) => c.clearanceLevel === "pending" || c.clearanceLevel === "action_required"
@@ -81,12 +86,14 @@ export function Sidebar({ isMobileOpen = false, onClose }: SidebarProps) {
             const badgeCount =
               item.to === ROUTES.TICKETS.LIST
                 ? openTicketsCount
-                : item.to === ROUTES.CLEARANCE
-                  ? pendingClearancesCount
-                  : 0;
+                : item.to === ROUTES.CONTACTS
+                  ? pendingContactsCount
+                  : item.to === ROUTES.CLEARANCE
+                    ? pendingClearancesCount
+                    : 0;
 
             const badgeBg =
-              item.to === ROUTES.CLEARANCE
+              item.to === ROUTES.CLEARANCE || item.to === ROUTES.CONTACTS
                 ? "bg-amber-500 text-white"
                 : "bg-rose-500 text-white";
 

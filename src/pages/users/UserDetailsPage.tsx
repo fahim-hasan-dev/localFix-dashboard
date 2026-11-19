@@ -17,7 +17,6 @@ import {
   Ban,
   UserCheck,
   Check,
-  X,
   ExternalLink,
   Star,
   User as UserIcon,
@@ -181,17 +180,16 @@ export const UserDetailsPage: React.FC = () => {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
 
-  const orders = useAppSelector((state) => state.orders.orders);
-  const transactions = useAppSelector((state) => state.transactions.transactions);
   const reviews = useAppSelector((state) => state.reviews.reviews);
 
   const {
-    data: user,
+    data: details,
     isLoading,
     isError,
     error,
     refetch,
   } = useGetUserByIdQuery(id ?? "", { skip: !id });
+  const user = details?.user;
   const { data: proClearance } = useGetClearanceByIdQuery(id ?? "", {
     skip: !id || user?.role !== "pro",
   });
@@ -209,25 +207,8 @@ export const UserDetailsPage: React.FC = () => {
   );
   const [isBanModalOpen, setIsBanModalOpen] = useState(false);
   const [banReason, setBanReason] = useState("");
-  const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
-  const [rejectReason, setRejectReason] = useState("");
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [notice, setNotice] = useState<{ text: string; isError: boolean } | null>(null);
-
-  // Pro Reviews Filter
-  const proReviews = reviews.filter(
-    (r) =>
-      (user && r.proId === user.id) ||
-      (user && r.proName.toLowerCase() === user.name.toLowerCase()) ||
-      (user && proClearance && r.proBusiness.toLowerCase() === proClearance.businessName.toLowerCase())
-  );
-  const proAvgRating =
-    proReviews.length > 0
-      ? (
-          proReviews.reduce((sum, r) => sum + r.rating, 0) /
-          proReviews.length
-        ).toFixed(1)
-      : "5.0";
 
   // Review Moderation State
   const [reviewToHide, setReviewToHide] = useState<Review | null>(null);
@@ -240,7 +221,7 @@ export const UserDetailsPage: React.FC = () => {
     setTimeout(() => setNotice(null), 3000);
   };
 
-  if (!user) {
+  if (!details || !user) {
     return (
       <div className="space-y-4">
         <Link
@@ -281,19 +262,45 @@ export const UserDetailsPage: React.FC = () => {
     );
   }
 
-  // Filter user orders & transactions
-  const userOrders = orders.filter(
-    (o) => o.homeownerId === user.id || o.proId === user.id
-  );
+  const userOrders = details.orders;
+  const userTransactions = details.transactions;
+  const apiReviews = details.reviews;
+  const profile = details.profile;
+  const statCards = details.statCards;
 
-  const userTransactions = transactions.filter(
-    (t) =>
-      t.user.toLowerCase().includes(user.name.toLowerCase()) ||
-      (t.customerEmail && t.customerEmail.toLowerCase() === user.email.toLowerCase()) ||
-      userOrders.some((o) => o.transactionId === t.id)
+  const proReviews = reviews.filter(
+    (r) =>
+      r.proId === user.id ||
+      r.proName.toLowerCase() === user.name.toLowerCase() ||
+      (proClearance &&
+        r.proBusiness.toLowerCase() === proClearance.businessName.toLowerCase())
   );
+  const displayReviews =
+    apiReviews.length > 0
+      ? apiReviews
+      : proReviews.map((r) => ({
+          id: r.id,
+          reviewerName: r.homeownerName || "Homeowner",
+          rating: r.rating,
+          feedback: r.comment || "",
+          jobTitle: r.jobTitle || "Service",
+          createdAt: r.createdAt,
+          reply: r.reply?.text || null,
+        }));
+  const proAvgRating =
+    displayReviews.length > 0
+      ? (
+          displayReviews.reduce((sum, r) => sum + r.rating, 0) /
+          displayReviews.length
+        ).toFixed(1)
+      : "—";
 
   const totalSpentOrEarned = userOrders.reduce((sum, o) => sum + o.amount, 0);
+
+  const statValue = (keys: string[], fallback: string | number = "—") => {
+    const card = statCards.find((s) => keys.includes(s.key));
+    return card?.value ?? fallback;
+  };
 
   // True pending clearance applicant detection
   const isNewOrPending =
@@ -305,82 +312,66 @@ export const UserDetailsPage: React.FC = () => {
   const activeProjects = getTradeProjects(proClearance?.trade);
 
   const getBio = () => {
+    if (profile?.about) return profile.about;
     if (isNewOrPending) {
       return `Applicant profile submitted on ${formatDate(
         proClearance?.submittedAt || user.joinedDate
       )}. Trade specialty registered: ${
-        proClearance?.trade || "Licensed Tradesperson"
-      } serving ${
-        user.location || "Austin, TX"
-      } and surrounding areas. Compliance credentials (TDLR License, General Liability, and Checkr Background Screening) are actively under verification.`;
+        proClearance?.trade || profile?.tradeSpecialty || "Licensed Tradesperson"
+      }${user.location ? ` serving ${user.location}` : ""}. Compliance credentials are under verification.`;
     }
-    const trade = (proClearance?.trade || "").toLowerCase();
-    if (trade.includes("plumb")) {
-      return `Master plumbing specialist serving ${
-        user.location || "Austin, TX"
-      } and surrounding communities for 12+ years. Specializing in whole-home repiping, tankless water heater conversions, sewer line hydro-jetting, and slab leak detection. Licensed, insured, and verified.`;
-    }
-    if (trade.includes("hvac") || trade.includes("air") || trade.includes("cool") || trade.includes("mechan")) {
-      return `Certified HVAC & mechanical contractor serving ${
-        user.location || "Austin, TX"
-      }. Specializing in high-efficiency heat pump installations, complete AC changeouts, ductwork sealing, and seasonal safety tune-ups with full manufacturer warranty backing.`;
-    }
-    if (trade.includes("roof")) {
-      return `Certified roofing specialist and exterior contractor serving ${
-        user.location || "Austin, TX"
-      } for 14+ years. Specializing in architectural asphalt shingles, standing-seam metal roofing, hail damage leak restoration, and complete tear-off replacements. Fully insured with manufacturer certification.`;
-    }
-    if (trade.includes("tree") || trade.includes("arbor")) {
-      return `ISA certified arborist and tree care professional serving ${
-        user.location || "Austin, TX"
-      }. Specializing in precision tree pruning, hazardous limb removal, disease diagnostics, and storm-damage remediation with heavy equipment capabilities.`;
-    }
-    if (trade.includes("handy") || trade.includes("general")) {
-      return `General maintenance and home repair technician serving ${
-        user.location || "Austin, TX"
-      }. Focused on drywall patching, minor fixture installations, door alignments, and seasonal property upkeep with upfront pricing and rapid turnaround.`;
-    }
-    return `Master electrical specialist serving ${
-      user.location || "Austin, TX"
-    } and surrounding communities for 10+ years. Specializing in 200A panel upgrades, EV home charger installations, dedicated circuits, recessed LED lighting, and safety audits with upfront pricing.`;
+    return profile?.tradeSpecialty
+      ? `${profile.tradeSpecialty}${user.location ? ` serving ${user.location}` : ""}.`
+      : "No profile bio available yet.";
   };
 
   const getExperience = () => {
-    const trade = (proClearance?.trade || "").toLowerCase();
-    if (user.name === "Luis Ortega") return "12+ Years Licensed";
-    if (user.name === "Marcus Vance") return "10+ Years Licensed";
-    if (user.name === "Carlos Mendez") return "14+ Years Licensed";
-    if (user.name === "Brandon Cole") return "15+ Years Licensed";
-    if (user.name === "Travis Sterling") return "9+ Years Licensed";
-    if (trade.includes("plumb")) return "10+ Years Licensed";
-    if (trade.includes("electr")) return "8+ Years Licensed";
-    if (trade.includes("roof")) return "12+ Years Licensed";
-    if (trade.includes("tree")) return "7+ Years Certified";
-    return "5+ Years Verified";
+    const highlight = profile?.tradeSpecialty;
+    if (highlight && /\d+\+?\s*years?/i.test(highlight)) return highlight;
+    return profile?.membershipPlan || "Verified Pro";
   };
 
   const getReputation = () => {
+    const ratingCard = statCards.find((s) => s.key === "customer_rating");
+    const totalReviews = displayReviews.length;
+    const avg =
+      totalReviews > 0
+        ? (
+            displayReviews.reduce((sum, r) => sum + r.rating, 0) / totalReviews
+          ).toFixed(1)
+        : ratingCard
+          ? String(ratingCard.value)
+          : "—";
+
+    const pct = (count: number) =>
+      totalReviews > 0 ? `${Math.round((count / totalReviews) * 100)}%` : "0%";
+    const five = displayReviews.filter((r) => r.rating >= 5).length;
+    const four = displayReviews.filter((r) => r.rating === 4).length;
+    const low = displayReviews.filter((r) => r.rating <= 3).length;
+
     if (user.status === "banned") {
       return {
-        score: "1.0",
-        totalReviews: 1,
-        recommendPct: "0%",
-        fiveStarPct: "0%",
-        fourStarPct: "0%",
-        lowStarPct: "100%",
+        score: avg === "—" ? "—" : avg,
+        totalReviews,
+        recommendPct: "—",
+        fiveStarPct: pct(five),
+        fourStarPct: pct(four),
+        lowStarPct: pct(low),
         subtext: "Account suspended due to policy violation",
       };
     }
-    const jobs = user.totalJobs || userOrders.length || 1;
-    const totalReviews = Math.max(1, Math.round(jobs * 1.8));
+
     return {
-      score: "4.9",
+      score: avg,
       totalReviews,
-      recommendPct: "97%",
-      fiveStarPct: "96%",
-      fourStarPct: "3%",
-      lowStarPct: "1%",
-      subtext: "Based on verified platform jobs",
+      recommendPct: totalReviews ? pct(five + four) : "0%",
+      fiveStarPct: pct(five),
+      fourStarPct: pct(four),
+      lowStarPct: pct(low),
+      subtext:
+        totalReviews > 0
+          ? "Based on verified platform reviews"
+          : "No reviews yet",
     };
   };
 
@@ -409,13 +400,15 @@ export const UserDetailsPage: React.FC = () => {
     }
   };
 
+  const userId = id || user?.id || "";
+
   const handleConfirmBan = (e: React.FormEvent) => {
     e.preventDefault();
     const reason = banReason.trim();
-    if (!reason) return;
+    if (!reason || !userId) return;
 
     return runAction(
-      () => updateUserStatus({ id: user.id, status: "inactive" }).unwrap(),
+      () => updateUserStatus({ id: userId, status: "inactive" }).unwrap(),
       () => {
         logAudit("USER_BANNED", `Account suspended. Reason: ${reason}`);
         setIsBanModalOpen(false);
@@ -426,19 +419,23 @@ export const UserDetailsPage: React.FC = () => {
     );
   };
 
-  const handleUnban = () =>
-    runAction(
-      () => updateUserStatus({ id: user.id, status: "active" }).unwrap(),
+  const handleUnban = () => {
+    if (!userId) return;
+    return runAction(
+      () => updateUserStatus({ id: userId, status: "active" }).unwrap(),
       () => {
         logAudit("USER_UNBANNED", "Account reinstated to active status.");
         triggerNotice("User account reinstated.");
       },
       "Failed to reinstate user."
     );
+  };
 
-  const handleApprovePro = () =>
-    runAction(
-      () => updateApprovalStatus({ id: user.id, approvalStatus: "approved" }).unwrap(),
+  const handleApprovePro = () => {
+    if (!userId) return;
+    return runAction(
+      () =>
+        updateApprovalStatus({ id: userId, approvalStatus: "approved" }).unwrap(),
       () => {
         logAudit(
           "PRO_CLEARANCE_APPROVED",
@@ -448,32 +445,19 @@ export const UserDetailsPage: React.FC = () => {
       },
       "Failed to approve contractor."
     );
-
-  const handleConfirmReject = (e?: React.FormEvent) => {
-    e?.preventDefault();
-    const reason = rejectReason.trim() || "Verification criteria not met.";
-
-    return runAction(
-      () => updateApprovalStatus({ id: user.id, approvalStatus: "rejected" }).unwrap(),
-      () => {
-        logAudit("PRO_CLEARANCE_REJECTED", `Contractor application rejected. Reason: ${reason}`);
-        setIsRejectModalOpen(false);
-        setRejectReason("");
-        triggerNotice("Contractor application has been rejected.");
-      },
-      "Failed to reject contractor."
-    );
   };
 
-  const handleConfirmDelete = () =>
-    runAction(
-      () => deleteUser(user.id).unwrap(),
+  const handleConfirmDelete = () => {
+    if (!userId) return;
+    return runAction(
+      () => deleteUser(userId).unwrap(),
       () => {
         logAudit("USER_DELETED", "User account permanently deleted.");
         navigate(ROUTES.USERS.LIST, { replace: true });
       },
       "Failed to delete user."
     ).finally(() => setIsDeleteModalOpen(false));
+  };
 
   return (
     <div className="space-y-4">
@@ -518,7 +502,7 @@ export const UserDetailsPage: React.FC = () => {
                 />
               ) : (
                 <div className="h-16 w-16 rounded-2xl bg-slate-100 text-slate-700 text-xl font-bold grid place-items-center ring-2 ring-slate-200/80 shadow-xs">
-                  {user.name.charAt(0).toUpperCase()}
+                  {(user.name || "?").charAt(0).toUpperCase()}
                 </div>
               )}
               <span
@@ -537,7 +521,7 @@ export const UserDetailsPage: React.FC = () => {
               {/* Name & Badges */}
               <div className="flex flex-wrap items-center gap-2">
                 <h1 className="text-xl font-bold text-slate-900 tracking-tight leading-none">
-                  {user.name}
+                  {user.name || "Unnamed User"}
                 </h1>
                 <span
                   className={`inline-flex rounded-md px-2 py-0.5 text-[11px] font-semibold ${
@@ -565,12 +549,12 @@ export const UserDetailsPage: React.FC = () => {
                 {/* Left Column: Phone */}
                 <div className="flex items-center gap-2 text-slate-600 shrink-0">
                   <Phone className="h-4 w-4 text-slate-400 shrink-0" />
-                  <span>{user.phone || "(512) 555-0182"}</span>
+                  <span>{user.phone || "—"}</span>
                 </div>
                 {/* Right Column: Email */}
                 <div className="flex items-center gap-2 text-slate-700 font-medium min-w-0">
                   <Mail className="h-4 w-4 text-slate-400 shrink-0" />
-                  <span className="truncate">{user.email}</span>
+                  <span className="truncate">{user.email || "—"}</span>
                 </div>
                 {/* Left Column: Joined Date */}
                 <div className="flex items-center gap-2 text-slate-600 shrink-0">
@@ -580,7 +564,7 @@ export const UserDetailsPage: React.FC = () => {
                 {/* Right Column: Location */}
                 <div className="flex items-center gap-2 text-slate-600 min-w-0">
                   <MapPin className="h-4 w-4 text-slate-400 shrink-0" />
-                  <span className="truncate">{user.location || "Austin, TX"}</span>
+                  <span className="truncate">{user.location || "—"}</span>
                 </div>
               </div>
             </div>
@@ -589,28 +573,16 @@ export const UserDetailsPage: React.FC = () => {
           {/* Right: Quick Action Buttons (Clean, Zero Clutter) */}
           <div className="flex items-center gap-2 shrink-0 self-start sm:self-center">
             {user.role === "pro" && user.status === "pending_clearance" ? (
-              <>
-                <Button
-                  size="sm"
-                  variant="primary"
-                  onClick={handleApprovePro}
-                  disabled={isBusy}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 h-8 shadow-xs cursor-pointer"
-                >
-                  <CheckCircle2 className="h-3.5 w-3.5" />
-                  <span>Approve Pro</span>
-                </Button>
-                <Button
-                  size="sm"
-                  variant="danger"
-                  disabled={isBusy}
-                  onClick={() => setIsRejectModalOpen(true)}
-                  className="bg-rose-600 hover:bg-rose-700 text-white flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 h-8 shadow-xs cursor-pointer"
-                >
-                  <X className="h-3.5 w-3.5" />
-                  <span>Reject Application</span>
-                </Button>
-              </>
+              <Button
+                size="sm"
+                variant="primary"
+                onClick={handleApprovePro}
+                disabled={isBusy}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 h-8 shadow-xs cursor-pointer"
+              >
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                <span>Approve Pro</span>
+              </Button>
             ) : user.status === "banned" ? (
               <Button
                 size="sm"
@@ -664,7 +636,10 @@ export const UserDetailsPage: React.FC = () => {
                 {user.role === "pro" ? "Lifetime Jobs" : "Total Orders"}
               </span>
               <span className="text-xl font-extrabold text-slate-900 tracking-tight block mt-0.5">
-                {user.totalJobs ?? userOrders.length}
+                {statValue(
+                  ["lifetime_jobs", "total_orders"],
+                  userOrders.length
+                )}
               </span>
             </div>
           </Card>
@@ -682,7 +657,10 @@ export const UserDetailsPage: React.FC = () => {
                 Completed
               </span>
               <span className="text-xl font-extrabold text-emerald-600 tracking-tight block mt-0.5">
-                {userOrders.filter((o) => o.fulfillmentStatus === "completed").length}
+                {statValue(
+                  ["completed"],
+                  userOrders.filter((o) => o.status === "completed").length
+                )}
               </span>
             </div>
           </Card>
@@ -700,12 +678,15 @@ export const UserDetailsPage: React.FC = () => {
                 Disputes &amp; Claims
               </span>
               <span className="text-xl font-extrabold text-rose-600 tracking-tight block mt-0.5">
-                {userOrders.filter((o) => o.fulfillmentStatus === "disputed").length}
+                {statValue(
+                  ["disputes_and_claims"],
+                  userOrders.filter((o) => o.status === "disputed").length
+                )}
               </span>
             </div>
           </Card>
 
-          {/* Metric 4: Marketplace Rating */}
+          {/* Metric 4: Marketplace Rating / Account Status */}
           <Card
             onClick={() => user.role === "pro" && setActiveTab("reviews")}
             className={`p-4 bg-white border border-line flex items-center gap-3.5 shadow-2xs ${
@@ -721,7 +702,9 @@ export const UserDetailsPage: React.FC = () => {
               </span>
               <div className="flex items-baseline gap-1.5 mt-0.5">
                 <span className="text-xl font-extrabold text-slate-900 tracking-tight">
-                  {user.role === "pro" ? getReputation().score : "Active"}
+                  {user.role === "pro"
+                    ? getReputation().score
+                    : statValue(["account_status"], user.status === "banned" ? "Banned" : "Active")}
                 </span>
                 {user.role === "pro" && (
                   <span className="text-xs text-slate-500 font-medium">
@@ -763,7 +746,7 @@ export const UserDetailsPage: React.FC = () => {
               }`}
             >
               <ImageIcon className="h-3.5 w-3.5" />
-              <span>Project Gallery ({activeProjects.length})</span>
+              <span>Project Gallery ({details.galleryCount || activeProjects.length})</span>
             </button>
           )}
 
@@ -791,7 +774,7 @@ export const UserDetailsPage: React.FC = () => {
               }`}
             >
               <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-500" />
-              <span>Reviews &amp; Ratings ({proReviews.length})</span>
+              <span>Reviews &amp; Ratings ({displayReviews.length})</span>
             </button>
           )}
 
@@ -1121,9 +1104,11 @@ export const UserDetailsPage: React.FC = () => {
                         <Award className="h-4 w-4 text-primary mt-0.5 shrink-0" />
                         <div>
                           <p className="text-sm font-semibold text-slate-900">
-                            {getExperience() || "12+ Years Licensed"} Experience
+                            {getExperience()}
                           </p>
-                          <p className="text-[11px] text-muted">Master-level field expertise</p>
+                          <p className="text-[11px] text-muted">
+                            {profile?.availability || "Field expertise on record"}
+                          </p>
                         </div>
                       </div>
 
@@ -1133,10 +1118,18 @@ export const UserDetailsPage: React.FC = () => {
                         <div>
                           <p className="text-sm font-semibold text-slate-900 flex items-center gap-1.5">
                             State Certified &amp; Licensed
-                            <Check className="h-3.5 w-3.5 text-emerald-600 stroke-[2.5]" />
+                            {proClearance?.licenseStatus === "verified" && (
+                              <Check className="h-3.5 w-3.5 text-emerald-600 stroke-[2.5]" />
+                            )}
                           </p>
                           <p className="text-[11px] text-muted">
-                            Lic #{proClearance?.licenseNumber || "TX-M-42981"} · Texas Verified
+                            {proClearance?.licenseNumber
+                              ? `Lic #${proClearance.licenseNumber}${
+                                  proClearance.licenseState
+                                    ? ` · ${proClearance.licenseState}`
+                                    : ""
+                                }`
+                              : "License not uploaded"}
                           </p>
                         </div>
                       </div>
@@ -1146,9 +1139,15 @@ export const UserDetailsPage: React.FC = () => {
                         <Shield className="h-4 w-4 text-indigo-600 mt-0.5 shrink-0" />
                         <div>
                           <p className="text-sm font-semibold text-slate-900">
-                            $1,000,000 Liability Policy
+                            {proClearance?.insuranceCoverageAmount
+                              ? `${proClearance.insuranceCoverageAmount} Liability Policy`
+                              : "Liability insurance"}
                           </p>
-                          <p className="text-[11px] text-muted">Commercial property &amp; bodily injury</p>
+                          <p className="text-[11px] text-muted">
+                            {proClearance?.insuranceStatus
+                              ? `Status: ${proClearance.insuranceStatus}`
+                              : "Insurance details not on file"}
+                          </p>
                         </div>
                       </div>
 
@@ -1157,10 +1156,16 @@ export const UserDetailsPage: React.FC = () => {
                         <BadgeCheck className="h-4 w-4 text-emerald-600 mt-0.5 shrink-0" />
                         <div>
                           <p className="text-sm font-semibold text-slate-900 flex items-center gap-1.5">
-                            Checkr Screening Passed
-                            <Check className="h-3.5 w-3.5 text-emerald-600 stroke-[2.5]" />
+                            Checkr Screening
+                            {proClearance?.checkrStatus === "clear" && (
+                              <Check className="h-3.5 w-3.5 text-emerald-600 stroke-[2.5]" />
+                            )}
                           </p>
-                          <p className="text-[11px] text-muted">Clear national criminal records</p>
+                          <p className="text-[11px] text-muted">
+                            {proClearance?.checkrStatus
+                              ? `Status: ${proClearance.checkrStatus}`
+                              : "Not started"}
+                          </p>
                         </div>
                       </div>
                     </div>
@@ -1173,7 +1178,9 @@ export const UserDetailsPage: React.FC = () => {
                         Trade Specialty
                       </span>
                       <span className="text-sm font-semibold text-slate-800 block mt-0.5 truncate">
-                        {proClearance?.trade || "Licensed Tradesperson"}
+                        {profile?.tradeSpecialty ||
+                          proClearance?.trade ||
+                          "—"}
                       </span>
                     </div>
                     <div>
@@ -1181,7 +1188,9 @@ export const UserDetailsPage: React.FC = () => {
                         Service Territory
                       </span>
                       <span className="text-sm font-semibold text-slate-800 block mt-0.5 truncate">
-                        {user.location || "Austin, TX"} (&lt;25 mi radius)
+                        {profile?.serviceTerritory ||
+                          user.location ||
+                          "Service area not set"}
                       </span>
                     </div>
                     <div>
@@ -1189,7 +1198,9 @@ export const UserDetailsPage: React.FC = () => {
                         Membership Plan
                       </span>
                       <span className="text-sm font-semibold text-slate-800 block mt-0.5 truncate">
-                        {user.subscriptionPlan ? user.subscriptionPlan.split(" (")[0] : "Pro Monthly"}
+                        {profile?.membershipPlan ||
+                          user.subscriptionPlan?.split(" (")[0] ||
+                          "—"}
                       </span>
                     </div>
                   </div>
@@ -1345,16 +1356,6 @@ export const UserDetailsPage: React.FC = () => {
                 >
                   <Check className="h-3.5 w-3.5" />
                   <span>Approve</span>
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={isBusy}
-                  onClick={() => setIsRejectModalOpen(true)}
-                  className="text-rose-600 border-rose-200 hover:bg-rose-50 font-semibold flex items-center gap-1.5 text-xs px-3 py-1.5 h-8"
-                >
-                  <X className="h-3.5 w-3.5" />
-                  <span>Reject</span>
                 </Button>
               </div>
             )}
@@ -1516,21 +1517,25 @@ export const UserDetailsPage: React.FC = () => {
                     ) : (
                       userOrders.map((order) => (
                         <tr
-                          key={order.id}
-                          onClick={() => navigate(`/orders/${order.id}`)}
+                          key={order.id || order.jobId}
+                          onClick={() => order.id && navigate(`/orders/${order.id}`)}
                           className="hover:bg-slate-50/70 transition-colors cursor-pointer group"
                         >
                           <td className="py-2.5 px-4 text-xs font-semibold text-primary font-mono whitespace-nowrap group-hover:underline">
-                            <Link
-                              to={`/orders/${order.id}`}
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              {order.id}
-                            </Link>
+                            {order.id ? (
+                              <Link
+                                to={`/orders/${order.id}`}
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                {order.jobId}
+                              </Link>
+                            ) : (
+                              order.jobId
+                            )}
                           </td>
                           <td className="py-2.5 px-3 font-medium text-title whitespace-nowrap">
-                            <span className="truncate max-w-[240px] block group-hover:text-primary transition-colors" title={order.jobTitle}>
-                              {order.jobTitle}
+                            <span className="truncate max-w-[240px] block group-hover:text-primary transition-colors" title={order.service}>
+                              {order.service}
                             </span>
                           </td>
                           <td className="py-2.5 px-3 font-semibold text-title whitespace-nowrap">
@@ -1540,33 +1545,37 @@ export const UserDetailsPage: React.FC = () => {
                             <span className="inline-block whitespace-nowrap">
                               <Badge
                                 variant={
-                                  order.fulfillmentStatus === "completed"
+                                  order.status === "completed"
                                     ? "success"
-                                    : order.fulfillmentStatus === "in_progress"
+                                    : order.status === "in_progress"
                                     ? "info"
-                                    : order.fulfillmentStatus === "disputed"
+                                    : order.status === "disputed"
                                     ? "error"
                                     : "warning"
                                 }
                                 dot
                               >
-                                {order.fulfillmentStatus.replace("_", " ")}
+                                {order.status.replace(/_/g, " ")}
                               </Badge>
                             </span>
                           </td>
                           <td className="py-2.5 px-3 text-xs text-muted whitespace-nowrap">
                             <span className="whitespace-nowrap font-medium text-slate-600">
-                              {formatDate(order.orderDate)}
+                              {formatDate(order.rawDate || order.date)}
                             </span>
                           </td>
                           <td className="py-2.5 px-4 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                            <Link
-                              to={`/orders/${order.id}`}
-                              className="inline-flex items-center gap-1 text-xs text-primary font-medium hover:underline"
-                            >
-                              <Eye className="h-3.5 w-3.5" />
-                              <span>View Order</span>
-                            </Link>
+                            {order.id ? (
+                              <Link
+                                to={`/orders/${order.id}`}
+                                className="inline-flex items-center gap-1 text-xs text-primary font-medium hover:underline"
+                              >
+                                <Eye className="h-3.5 w-3.5" />
+                                <span>View Order</span>
+                              </Link>
+                            ) : (
+                              <span className="text-xs text-muted">—</span>
+                            )}
                           </td>
                         </tr>
                       ))
@@ -1600,13 +1609,13 @@ export const UserDetailsPage: React.FC = () => {
                       </tr>
                     ) : (
                       userTransactions.map((tx) => (
-                        <tr key={tx.id} className="hover:bg-slate-50/70 transition-colors">
+                        <tr key={tx.id || tx.transactionId} className="hover:bg-slate-50/70 transition-colors">
                           <td className="py-2.5 px-4 text-xs font-semibold text-primary whitespace-nowrap">
-                            {tx.id}
+                            {tx.transactionId}
                           </td>
                           <td className="py-2.5 px-3 font-medium text-title whitespace-nowrap">
-                            <span className="truncate max-w-[240px] block" title={tx.title}>
-                              {tx.title}
+                            <span className="truncate max-w-[240px] block" title={tx.description}>
+                              {tx.description}
                             </span>
                           </td>
                           <td className="py-2.5 px-3 font-semibold text-title whitespace-nowrap">
@@ -1624,13 +1633,13 @@ export const UserDetailsPage: React.FC = () => {
                                 }
                                 dot
                               >
-                                {tx.status.replace("_", " ")}
+                                {tx.status.replace(/_/g, " ")}
                               </Badge>
                             </span>
                           </td>
                           <td className="py-2.5 px-4 text-xs text-muted whitespace-nowrap">
                             <span className="whitespace-nowrap font-medium text-slate-600">
-                              {formatDate(tx.date)}
+                              {formatDate(tx.rawDate || tx.date)}
                             </span>
                           </td>
                         </tr>
@@ -1718,7 +1727,7 @@ export const UserDetailsPage: React.FC = () => {
               })()}
 
               {/* Reviews List */}
-              {proReviews.length === 0 ? (
+              {displayReviews.length === 0 ? (
                 <Card className="p-12 text-center text-muted bg-white border-line">
                   <Star className="h-8 w-8 text-slate-300 mx-auto mb-2" />
                   <p className="text-sm font-semibold text-title">No customer reviews yet</p>
@@ -1726,6 +1735,57 @@ export const UserDetailsPage: React.FC = () => {
                     This pro has not yet received verified reviews from completed platform jobs.
                   </p>
                 </Card>
+              ) : apiReviews.length > 0 ? (
+                <div className="space-y-3">
+                  {apiReviews.map((rev) => (
+                    <Card
+                      key={rev.id}
+                      className="p-5 bg-white border border-slate-200/90 rounded-xl shadow-2xs"
+                    >
+                      <div className="space-y-3">
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 pb-2.5 border-b border-slate-100">
+                          <div>
+                            <span className="font-semibold text-xs text-slate-900">
+                              {rev.reviewerName}
+                            </span>
+                            <p className="text-[11px] text-slate-500 mt-0.5">
+                              Job: {rev.jobTitle}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-1 text-xs">
+                            <span className="font-bold text-slate-900">{rev.rating}.0</span>
+                            <div className="flex items-center">
+                              {[1, 2, 3, 4, 5].map((s) => (
+                                <Star
+                                  key={s}
+                                  className={`h-3.5 w-3.5 ${
+                                    s <= rev.rating
+                                      ? "fill-amber-400 text-amber-400"
+                                      : "text-slate-200"
+                                  }`}
+                                />
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                        {rev.feedback && (
+                          <p className="text-xs text-slate-700 leading-relaxed">{rev.feedback}</p>
+                        )}
+                        {rev.reply && (
+                          <div className="rounded-lg bg-slate-50 border border-slate-100 p-3">
+                            <p className="text-[11px] font-semibold text-slate-600 mb-1">
+                              Pro response
+                            </p>
+                            <p className="text-xs text-slate-700">{rev.reply}</p>
+                          </div>
+                        )}
+                        <p className="text-[11px] text-muted">
+                          Submitted {formatDate(rev.createdAt)}
+                        </p>
+                      </div>
+                    </Card>
+                  ))}
+                </div>
               ) : (
                 <div className="space-y-3">
                   {proReviews.map((rev) => {
@@ -1747,22 +1807,19 @@ export const UserDetailsPage: React.FC = () => {
                           {/* Review Top Header: Minimal clean hierarchy */}
                           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 pb-2.5 border-b border-slate-100">
                             <div className="flex items-center gap-3">
-                              <img
-                                src={
-                                  rev.homeownerAvatar ||
-                                  "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&h=150&q=80"
-                                }
-                                alt={rev.homeownerName}
-                                className="h-9 w-9 rounded-full object-cover ring-1 ring-slate-200 shrink-0"
-                              />
+                              <div className="h-9 w-9 rounded-full bg-slate-100 text-slate-600 text-xs font-bold grid place-items-center ring-1 ring-slate-200 shrink-0">
+                                {(rev.homeownerName || "?").charAt(0).toUpperCase()}
+                              </div>
                               <div>
                                 <div className="flex items-center gap-2 flex-wrap">
                                   <span className="font-semibold text-xs text-slate-900">
                                     {rev.homeownerName}
                                   </span>
-                                  <span className="text-[11px] text-slate-400">
-                                    ({rev.homeownerLocation})
-                                  </span>
+                                  {rev.homeownerLocation && (
+                                    <span className="text-[11px] text-slate-400">
+                                      ({rev.homeownerLocation})
+                                    </span>
+                                  )}
                                   {rev.verifiedHire && (
                                     <span className="inline-flex items-center gap-1 text-[10px] font-medium text-emerald-700 bg-emerald-50 px-2 py-0.2 rounded-full border border-emerald-200/70">
                                       <Check className="h-2.5 w-2.5" />
@@ -2034,37 +2091,6 @@ export const UserDetailsPage: React.FC = () => {
               </div>
             </div>
           </div>
-        </Modal>
-      )}
-
-      {/* Reject Application Modal */}
-      {isRejectModalOpen && (
-        <Modal
-          isOpen={isRejectModalOpen}
-          onClose={() => setIsRejectModalOpen(false)}
-          title={`Reject Application: ${user.name}`}
-          description="Specify why this contractor's verification is being rejected. They will receive guidance on what to correct."
-          footer={
-            <div className="flex items-center justify-end gap-2 w-full">
-              <Button size="sm" variant="outline" onClick={() => setIsRejectModalOpen(false)}>
-                Cancel
-              </Button>
-              <Button size="sm" variant="danger" onClick={() => handleConfirmReject()} disabled={isBusy}>
-                Confirm Rejection
-              </Button>
-            </div>
-          }
-        >
-          <form onSubmit={handleConfirmReject} className="space-y-3 pt-1">
-            <textarea
-              rows={4}
-              placeholder="e.g. State license number could not be verified on TDLR registry, or liability insurance coverage is insufficient..."
-              value={rejectReason}
-              onChange={(e) => setRejectReason(e.target.value)}
-              className="w-full rounded-xl border border-line p-3 text-xs text-title placeholder:text-muted outline-none focus:border-rose-500"
-              required
-            />
-          </form>
         </Modal>
       )}
 

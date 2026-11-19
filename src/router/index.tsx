@@ -14,6 +14,7 @@ import SubscriptionsPage from "@/pages/subscriptions/SubscriptionsPage";
 import ProsReviewPage from "@/pages/pros/ProsReviewPage";
 import TicketsPage from "@/pages/tickets/TicketsPage";
 import TicketDetailsPage from "@/pages/tickets/TicketDetailsPage";
+import ContactsPage from "@/pages/contacts/ContactsPage";
 import CmsPage from "@/pages/content/CmsPage";
 import SettingsPage from "@/pages/settings/SettingsPage";
 import JobLeadDetailsPage from "@/pages/jobs/JobLeadDetailsPage";
@@ -108,6 +109,10 @@ export const router = createBrowserRouter([
       {
         path: "tickets/:id",
         element: <TicketDetailsPage />,
+      },
+      {
+        path: "contacts",
+        element: <ContactsPage />,
       },
       {
         path: "support",

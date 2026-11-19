@@ -16,16 +16,15 @@ export function formatCurrency(amount: number): string {
 }
 
 export function formatDate(dateString: string): string {
-  try {
-    const d = new Date(dateString);
-    return d.toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    });
-  } catch {
-    return dateString;
-  }
+  if (!dateString?.trim()) return "—";
+  const cleaned = dateString.replace(/^Joined\s+/i, "").trim();
+  const d = new Date(cleaned);
+  if (Number.isNaN(d.getTime())) return cleaned || "—";
+  return d.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
 }
 
 /** Backend ids are long ObjectIds — show a short, readable reference. */

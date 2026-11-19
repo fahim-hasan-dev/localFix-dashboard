@@ -8,6 +8,7 @@ export * from "@/api/jobsOrders.api";
 export * from "@/api/transactions.api";
 export * from "@/api/subscriptions.api";
 export * from "@/api/tickets.api";
+export * from "@/api/contact.api";
 export * from "@/api/notifications.api";
 export * from "@/api/cms.api";
 export * from "@/api/settings.api";

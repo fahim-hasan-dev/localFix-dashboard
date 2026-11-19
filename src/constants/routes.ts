@@ -31,6 +31,7 @@ export const ROUTES = {
     LIST: "/tickets",
     DETAIL: (id: string) => `/tickets/${id}`,
   },
+  CONTACTS: "/contacts",
   CMS: "/cms",
   CATEGORIES: {
     LIST: "/categories",
